@@ -76,6 +76,10 @@
   .metric-value.green { color: #3fb950; }
   .metric-value.blue { color: #58a6ff; }
 
+  .footer { text-align: center; margin-top: 20px; padding: 12px; font-size: 0.8rem; color: #484f58; }
+  .footer a { color: #58a6ff; text-decoration: none; }
+  .footer a:hover { text-decoration: underline; }
+
   .explanation { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 20px; }
   .explanation h3 { margin-top: 0; margin-bottom: 10px; color: #58a6ff; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.04em; }
   .explanation p { font-size: 0.85rem; line-height: 1.6; color: #c9d1d9; margin-bottom: 8px; }
@@ -192,6 +196,8 @@
     <p><strong>Continuous Batching:</strong> Dynamically adds/removes requests at the token level, keeping GPU constantly busy with ~95% utilization and 2-4x higher throughput.</p>
     <p><strong>Integration with PagedAttention:</strong> The dynamic nature of continuous batching requires flexible memory management, which PagedAttention provides through fine-grained, non-fragmented memory allocation.</p>
   </div>
+
+  <div class="footer">Created by <a href="https://github.com/raihan0824" target="_blank">Raihan Afiandi</a></div>
 </div>
 
 <script>
