@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KV Cache vs Prefix Cache</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: #0d1117; color: #e6edf3; min-height: 100vh; padding: 24px; }
+  h1 { text-align: center; font-size: 1.6rem; margin-bottom: 8px; color: #58a6ff; }
+  .subtitle { text-align: center; color: #8b949e; margin-bottom: 24px; font-size: 0.9rem; }
+  .container { max-width: 900px; margin: 0 auto; }
+  .tabs { display: flex; gap: 4px; margin-bottom: 20px; }
+  .tab { flex: 1; padding: 12px; text-align: center; background: #161b22; border: 1px solid #30363d; border-radius: 8px 8px 0 0; cursor: pointer; font-weight: 600; color: #8b949e; transition: all 0.2s; user-select: none; }
+  .tab.active { background: #1c2333; border-bottom-color: #1c2333; color: #58a6ff; }
+  .tab:hover:not(.active) { color: #c9d1d9; }
+  .scene { background: #1c2333; border: 1px solid #30363d; border-radius: 0 0 12px 12px; padding: 24px; min-height: 480px; }
+  .controls { display: flex; align-items: center; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+  .btn { padding: 8px 16px; border-radius: 6px; border: 1px solid #30363d; background: #21262d; color: #e6edf3; cursor: pointer; font-size: 0.85rem; font-weight: 600; transition: all 0.15s; user-select: none; display: inline-flex; align-items: center; gap: 5px; }
+  .btn:hover { background: #30363d; }
+  .btn.primary { background: #238636; border-color: #2ea043; }
+  .btn.primary:hover { background: #2ea043; }
+  .btn.play { background: #1f6feb; border-color: #388bfd; }
+  .btn.play:hover { background: #388bfd; }
+  .btn.stop { background: #9e1c23; border-color: #f85149; }
+  .btn.stop:hover { background: #b62324; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn svg { width: 14px; height: 14px; fill: currentColor; }
+  .step-label { color: #8b949e; font-size: 0.85rem; flex: 1; text-align: right; }
+  .speed-control { display: flex; align-items: center; gap: 6px; color: #8b949e; font-size: 0.75rem; }
+  .speed-control select { background: #161b22; color: #c9d1d9; border: 1px solid #30363d; border-radius: 4px; padding: 4px 6px; font-size: 0.75rem; cursor: pointer; }
+
+  .narration { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 16px 20px; margin-bottom: 20px; min-height: 60px; }
+  .narration .step-title { display: block; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: #58a6ff; margin-bottom: 6px; }
+  .narration .step-body { display: block; font-size: 0.9rem; line-height: 1.6; color: #c9d1d9; }
+  .narration .step-body .hl { color: #58a6ff; font-weight: 600; }
+  .narration .step-body .yellow { color: #e3b341; font-weight: 600; }
+  .narration .step-body .green { color: #3fb950; font-weight: 600; }
+  .narration .step-body .red { color: #f85149; font-weight: 600; }
+
+  .gpu-box { border: 2px solid #30363d; border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+  .gpu-label { font-size: 0.75rem; font-weight: 700; color: #8b949e; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 10px; }
+  .token-row { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 8px; }
+  .token { width: 56px; height: 40px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 700; border: 2px solid transparent; transition: all 0.4s ease; }
+  .token.empty { background: #161b22; border-color: #21262d; color: #30363d; }
+  .token.computing { background: #1a1e2e; border-color: #58a6ff; color: #58a6ff; animation: pulse 0.8s ease-in-out infinite; }
+  .token.computed { background: #122d1e; border-color: #2ea043; color: #3fb950; }
+  .token.reused { background: #2a1d00; border-color: #d29922; color: #e3b341; }
+  .token.generated { background: #1a0a2e; border-color: #8957e5; color: #a371f7; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 16px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 0.75rem; color: #8b949e; }
+  .legend-dot { width: 12px; height: 12px; border-radius: 3px; }
+  .kv-row { display: flex; gap: 4px; flex-wrap: wrap; }
+  .kv-slot { width: 56px; height: 24px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 0.6rem; font-weight: 600; transition: all 0.4s ease; }
+  .kv-slot.empty { background: #161b22; border: 1px dashed #21262d; color: #30363d; }
+  .kv-slot.filled { background: #122d1e; border: 1px solid #2ea043; color: #3fb950; }
+  .kv-slot.cached { background: #2a1d00; border: 1px solid #d29922; color: #e3b341; }
+  .kv-slot.reused { background: #2a1d00; border: 1px solid #d29922; color: #e3b341; animation: glow 0.6s ease; }
+  @keyframes glow { 0% { box-shadow: 0 0 8px #d29922; } 100% { box-shadow: none; } }
+  .arrow { color: #484f58; margin: 4px 0; font-size: 0.8rem; text-align: center; }
+  .section-label { font-size: 0.8rem; font-weight: 600; color: #58a6ff; margin: 12px 0 6px 0; }
+  .savings { background: #122d1e; border: 1px solid #2ea043; border-radius: 8px; padding: 10px 16px; margin-top: 12px; font-size: 0.85rem; color: #3fb950; text-align: center; font-weight: 600; display: none; }
+  .hidden { display: none; }
+  .progress-bar { display: flex; gap: 3px; margin-bottom: 16px; }
+  .progress-dot { flex: 1; height: 4px; border-radius: 2px; background: #21262d; transition: background 0.3s; }
+  .progress-dot.done { background: #238636; }
+  .progress-dot.current { background: #58a6ff; }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <h1>KV Cache vs Prefix Cache</h1>
+  <p class="subtitle">Understanding how vLLM avoids redundant computation</p>
+
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab(0)">① KV Cache (Single Request)</div>
+    <div class="tab" onclick="switchTab(1)">② Prefix Cache (Across Requests)</div>
+  </div>
+
+  <!-- TAB 1: KV CACHE -->
+  <div class="scene" id="scene0">
+    <div class="controls">
+      <button class="btn" id="prevBtn0" onclick="kvGo(-1)">
+        <svg viewBox="0 0 16 16"><path d="M9.78 12.78a.75.75 0 01-1.06 0L4.47 8.53a.75.75 0 010-1.06l4.25-4.25a.75.75 0 011.06 1.06L6.06 8l3.72 3.72a.75.75 0 010 1.06z"/></svg>
+        Prev
+      </button>
+      <button class="btn primary" id="nextBtn0" onclick="kvGo(1)">
+        Next
+        <svg viewBox="0 0 16 16"><path d="M6.22 3.22a.75.75 0 011.06 0l4.25 4.25a.75.75 0 010 1.06l-4.25 4.25a.75.75 0 01-1.06-1.06L9.94 8 6.22 4.28a.75.75 0 010-1.06z"/></svg>
+      </button>
+      <button class="btn play" id="playBtn0" onclick="kvTogglePlay()">
+        <svg id="playIcon0" viewBox="0 0 16 16"><path d="M4 2l10 6-10 6z"/></svg>
+        <svg id="stopIcon0" viewBox="0 0 16 16" style="display:none"><rect x="3" y="3" width="10" height="10" rx="1"/></svg>
+        <span id="playLabel0">Play</span>
+      </button>
+      <div class="speed-control">
+        <label for="speed0">Speed:</label>
+        <select id="speed0">
+          <option value="2500">Slow</option>
+          <option value="1500" selected>Normal</option>
+          <option value="800">Fast</option>
+        </select>
+      </div>
+      <span class="step-label" id="stepLabel0">Step 0 / 6</span>
+    </div>
+    <div class="progress-bar" id="progress0"></div>
+    <div class="narration" id="narration0">
+      <span class="step-title">Getting Started</span>
+      <span class="step-body">Click <span class="hl">Next</span> to step through, or <span class="hl">Play</span> to auto-advance.</span>
+    </div>
+
+    <div class="gpu-box">
+      <div class="gpu-label">Prompt + Generated Tokens</div>
+      <div class="token-row" id="kvTokens"></div>
+    </div>
+    <div class="arrow">↕ KV Cache (GPU Memory)</div>
+    <div class="gpu-box">
+      <div class="gpu-label">KV Cache Slots</div>
+      <div class="kv-row" id="kvSlots"></div>
+    </div>
+    <div class="legend">
+      <div class="legend-item"><div class="legend-dot" style="background:#161b22;border:1px solid #21262d"></div> Empty</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#1a1e2e;border:1px solid #58a6ff"></div> Computing</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#122d1e;border:1px solid #2ea043"></div> Computed (KV cached)</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#1a0a2e;border:1px solid #8957e5"></div> Generated</div>
+    </div>
+    <div class="savings" id="kvSavings"></div>
+  </div>
+
+  <!-- TAB 2: PREFIX CACHE -->
+  <div class="scene hidden" id="scene1">
+    <div class="controls">
+      <button class="btn" id="prevBtn1" onclick="prefixGo(-1)">
+        <svg viewBox="0 0 16 16"><path d="M9.78 12.78a.75.75 0 01-1.06 0L4.47 8.53a.75.75 0 010-1.06l4.25-4.25a.75.75 0 011.06 1.06L6.06 8l3.72 3.72a.75.75 0 010 1.06z"/></svg>
+        Prev
+      </button>
+      <button class="btn primary" id="nextBtn1" onclick="prefixGo(1)">
+        Next
+        <svg viewBox="0 0 16 16"><path d="M6.22 3.22a.75.75 0 011.06 0l4.25 4.25a.75.75 0 010 1.06l-4.25 4.25a.75.75 0 01-1.06-1.06L9.94 8 6.22 4.28a.75.75 0 010-1.06z"/></svg>
+      </button>
+      <button class="btn play" id="playBtn1" onclick="prefixTogglePlay()">
+        <svg id="playIcon1" viewBox="0 0 16 16"><path d="M4 2l10 6-10 6z"/></svg>
+        <svg id="stopIcon1" viewBox="0 0 16 16" style="display:none"><rect x="3" y="3" width="10" height="10" rx="1"/></svg>
+        <span id="playLabel1">Play</span>
+      </button>
+      <div class="speed-control">
+        <label for="speed1">Speed:</label>
+        <select id="speed1">
+          <option value="2500">Slow</option>
+          <option value="1500" selected>Normal</option>
+          <option value="800">Fast</option>
+        </select>
+      </div>
+      <span class="step-label" id="stepLabel1">Step 0 / 8</span>
+    </div>
+    <div class="progress-bar" id="progress1"></div>
+    <div class="narration" id="narration1">
+      <span class="step-title">Getting Started</span>
+      <span class="step-body">Click <span class="hl">Next</span> to step through, or <span class="hl">Play</span> to auto-advance.</span>
+    </div>
+
+    <div class="section-label" id="reqLabel1">Request 1</div>
+    <div class="gpu-box">
+      <div class="gpu-label">Request 1: Tokens</div>
+      <div class="token-row" id="prefixTokens1"></div>
+      <div class="gpu-label" style="margin-top:8px">KV Cache</div>
+      <div class="kv-row" id="prefixKV1"></div>
+    </div>
+    <div class="section-label hidden" id="reqLabel2">Request 2 (same system prompt, different question)</div>
+    <div class="gpu-box hidden" id="req2Box">
+      <div class="gpu-label">Request 2: Tokens</div>
+      <div class="token-row" id="prefixTokens2"></div>
+      <div class="gpu-label" style="margin-top:8px">KV Cache</div>
+      <div class="kv-row" id="prefixKV2"></div>
+    </div>
+    <div class="legend">
+      <div class="legend-item"><div class="legend-dot" style="background:#161b22;border:1px solid #21262d"></div> Empty</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#1a1e2e;border:1px solid #58a6ff"></div> Computing</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#122d1e;border:1px solid #2ea043"></div> Computed</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#2a1d00;border:1px solid #d29922"></div> Reused from Cache</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#1a0a2e;border:1px solid #8957e5"></div> Generated</div>
+    </div>
+    <div class="savings" id="prefixSavings"></div>
+  </div>
+</div>
+
+<script>
+function switchTab(idx) {
+  document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', i===idx));
+  document.querySelectorAll('.scene').forEach((s,i) => s.classList.toggle('hidden', i!==idx));
+}
+
+function setNarration(id, title, body) {
+  document.getElementById(id).innerHTML =
+    `<span class="step-title">${title}</span><span class="step-body">${body}</span>`;
+}
+
+function renderProgress(id, current, total) {
+  const el = document.getElementById(id);
+  el.innerHTML = '';
+  for (let i = 0; i <= total; i++) {
+    const dot = document.createElement('div');
+    dot.className = 'progress-dot';
+    if (i < current) dot.classList.add('done');
+    else if (i === current) dot.classList.add('current');
+    el.appendChild(dot);
+  }
+}
+
+function updatePlayBtn(idx, playing) {
+  document.getElementById(`playIcon${idx}`).style.display = playing ? 'none' : '';
+  document.getElementById(`stopIcon${idx}`).style.display = playing ? '' : 'none';
+  document.getElementById(`playLabel${idx}`).textContent = playing ? 'Stop' : 'Play';
+  const btn = document.getElementById(`playBtn${idx}`);
+  btn.classList.toggle('play', !playing);
+  btn.classList.toggle('stop', playing);
+}
+
+// ─── KV CACHE ───
+const kvPrompt = ["The","capital","of","France","is"];
+const kvGenerated = ["Paris"];
+let kvStep = 0;
+const kvMax = 6;
+let kvPlaying = false;
+let kvTimer = null;
+
+function renderKVTokens() {
+  const el = document.getElementById('kvTokens'); el.innerHTML = '';
+  for (let i = 0; i < kvPrompt.length + kvGenerated.length; i++) {
+    const d = document.createElement('div'); d.className = 'token empty'; el.appendChild(d);
+  }
+}
+function renderKVSlots() {
+  const el = document.getElementById('kvSlots'); el.innerHTML = '';
+  for (let i = 0; i < kvPrompt.length + kvGenerated.length; i++) {
+    const d = document.createElement('div'); d.className = 'kv-slot empty'; d.textContent = '—'; el.appendChild(d);
+  }
+}
+
+function renderKV() {
+  const tokens = document.getElementById('kvTokens').children;
+  const slots = document.getElementById('kvSlots').children;
+  const all = [...kvPrompt, ...kvGenerated];
+  const savings = document.getElementById('kvSavings');
+
+  // Reset everything first
+  renderKVTokens(); renderKVSlots(); savings.style.display = 'none';
+  const t = document.getElementById('kvTokens').children;
+  const s = document.getElementById('kvSlots').children;
+
+  // Rebuild state up to current step
+  if (kvStep >= 1) { for (let i = 0; i < kvPrompt.length; i++) { t[i].className = 'token empty'; t[i].textContent = all[i]; } }
+  if (kvStep >= 3) {
+    for (let i = 0; i < kvPrompt.length; i++) { t[i].className = 'token computed'; s[i].className = 'kv-slot filled'; s[i].textContent = `K${i+1},V${i+1}`; }
+  } else if (kvStep >= 2) {
+    for (let i = 0; i < kvPrompt.length; i++) { t[i].className = 'token computing'; s[i].className = 'kv-slot empty'; s[i].textContent = '...'; }
+  }
+  if (kvStep >= 4) { t[5].className = 'token generated'; t[5].textContent = all[5]; s[5].className = 'kv-slot filled'; s[5].textContent = 'K6,V6'; }
+  if (kvStep >= 5) { savings.style.display = 'block'; savings.textContent = '✅ KV Cache saved recomputing 5 tokens of attention on every decode step'; }
+
+  const narrations = [
+    ['Getting Started', 'Click <span class="hl">Next</span> to step through, or <span class="hl">Play</span> to auto-advance.'],
+    ['Step 1 — Prompt Arrives', 'The prompt arrives with 5 tokens. All tokens need KV computation from scratch — there is no existing cache.'],
+    ['Step 2 — Computing KV Vectors', 'The model processes all prompt tokens in parallel during <span class="hl">prefill</span>, computing Key and Value vectors for each token.'],
+    ['Step 3 — KV Vectors Cached', 'All prompt tokens now have their <span class="hl">[K,V]</span> vectors stored in GPU memory. This is the KV cache — it prevents recomputation during decoding.'],
+    ['Step 4 — Decode: Generate "Paris"', 'Only <span class="hl">one new KV pair</span> is computed for the generated token. The previous 5 KV pairs are reused from cache — zero recomputation needed.'],
+    ['Step 5 — Why KV Cache Matters', 'Without KV cache, generating each new token would recompute attention over ALL previous tokens — <span class="red">O(n²)</span> cost. With KV cache, it\'s <span class="green">O(n)</span>.'],
+    ['Step 6 — What Happens Next?', 'Normally these KV values are <span class="red">discarded</span> when the request finishes. Prefix caching changes that — it keeps them for future requests. Switch to <span class="hl">tab ②</span> to see how.'],
+  ];
+  setNarration('narration0', narrations[kvStep][0], narrations[kvStep][1]);
+  document.getElementById('stepLabel0').textContent = `Step ${kvStep} / ${kvMax}`;
+  document.getElementById('prevBtn0').disabled = kvStep <= 0;
+  document.getElementById('nextBtn0').disabled = kvStep >= kvMax;
+  renderProgress('progress0', kvStep, kvMax);
+}
+
+function kvGo(dir) { kvStep = Math.max(0, Math.min(kvMax, kvStep + dir)); renderKV(); }
+function kvTogglePlay() {
+  kvPlaying = !kvPlaying;
+  updatePlayBtn(0, kvPlaying);
+  if (kvPlaying) { kvPlayTick(); } else { clearTimeout(kvTimer); }
+}
+function kvPlayTick() {
+  if (!kvPlaying) return;
+  if (kvStep >= kvMax) { kvPlaying = false; updatePlayBtn(0, false); return; }
+  kvStep++; renderKV();
+  kvTimer = setTimeout(kvPlayTick, parseInt(document.getElementById('speed0').value));
+}
+
+// ─── PREFIX CACHE ───
+const sysPrompt = ["[SYS]","You","are","a","helpful"];
+const userQ1 = ["[U]","1+1?"];
+const userQ2 = ["[U]","2+2?"];
+let prefixStep = 0;
+const prefixMax = 8;
+let prefixPlaying = false;
+let prefixTimer = null;
+
+function initPrefixEls(id, count) {
+  const el = document.getElementById(id); el.innerHTML = '';
+  for (let i = 0; i < count; i++) { const d = document.createElement('div'); d.className = id.includes('KV') ? 'kv-slot empty' : 'token empty'; if (id.includes('KV')) d.textContent = '—'; el.appendChild(d); }
+}
+
+function renderPrefix() {
+  const all1 = [...sysPrompt, ...userQ1];
+  const all2 = [...sysPrompt, ...userQ2];
+  const savings = document.getElementById('prefixSavings');
+
+  // Reset
+  initPrefixEls('prefixTokens1', all1.length);
+  initPrefixEls('prefixKV1', all1.length);
+  document.getElementById('reqLabel2').classList.add('hidden');
+  document.getElementById('req2Box').classList.add('hidden');
+  savings.style.display = 'none';
+
+  const t1 = document.getElementById('prefixTokens1').children;
+  const k1 = document.getElementById('prefixKV1').children;
+
+  // Rebuild state
+  if (prefixStep >= 1) { for (let i = 0; i < all1.length; i++) { t1[i].className = 'token empty'; t1[i].textContent = all1[i]; } }
+  if (prefixStep >= 3) {
+    for (let i = 0; i < all1.length; i++) { t1[i].className = 'token computed'; k1[i].className = 'kv-slot filled'; k1[i].textContent = `K${i+1},V${i+1}`; }
+  } else if (prefixStep >= 2) {
+    for (let i = 0; i < all1.length; i++) { t1[i].className = 'token computing'; k1[i].className = 'kv-slot empty'; k1[i].textContent = '...'; }
+  }
+  if (prefixStep >= 4) {
+    for (let i = 0; i < all1.length; i++) { k1[i].className = 'kv-slot cached'; k1[i].textContent = `K${i+1},V${i+1}`; }
+  }
+  if (prefixStep >= 5) {
+    document.getElementById('reqLabel2').classList.remove('hidden');
+    document.getElementById('req2Box').classList.remove('hidden');
+    initPrefixEls('prefixTokens2', all2.length);
+    initPrefixEls('prefixKV2', all2.length);
+    const t2 = document.getElementById('prefixTokens2').children;
+    for (let i = 0; i < all2.length; i++) { t2[i].className = 'token empty'; t2[i].textContent = all2[i]; }
+  }
+  if (prefixStep >= 6) {
+    const t2 = document.getElementById('prefixTokens2').children;
+    const k2 = document.getElementById('prefixKV2').children;
+    for (let i = 0; i < sysPrompt.length; i++) { t2[i].className = 'token reused'; k2[i].className = 'kv-slot reused'; k2[i].textContent = `K${i+1},V${i+1}`; }
+  }
+  if (prefixStep >= 7) {
+    const t2 = document.getElementById('prefixTokens2').children;
+    const k2 = document.getElementById('prefixKV2').children;
+    for (let i = sysPrompt.length; i < all2.length; i++) { t2[i].className = 'token computed'; k2[i].className = 'kv-slot filled'; k2[i].textContent = `K${i+1},V${i+1}`; }
+  }
+  if (prefixStep >= 8) {
+    savings.style.display = 'block';
+    savings.textContent = '✅ Prefix Cache saved recomputing 5 tokens (71% of prompt) — reported as cached_tokens in the API';
+  }
+
+  const narrations = [
+    ['Getting Started', 'Click <span class="hl">Next</span> to step through, or <span class="hl">Play</span> to auto-advance.'],
+    ['Step 1 — Request 1 Arrives', 'System prompt + user question. All 7 tokens are new — no cache exists yet, so everything must be computed from scratch.'],
+    ['Step 2 — Prefill: Computing All KV', 'All 7 tokens are processed. KV vectors are computed and stored in GPU memory blocks. Each full block gets <span class="hl">hashed</span> by its token content.'],
+    ['Step 3 — KV Computed & Hashed', 'All KV vectors are now stored. Full blocks are registered in the <span class="hl">hash table</span> for prefix cache lookup by future requests.'],
+    ['Step 4 — Request 1 Finishes', 'Blocks are <span class="yellow">freed</span> but the KV data and hashes <span class="hl">stay in GPU memory</span>. They are not deleted — just marked as "free but cached." This is the prefix cache.'],
+    ['Step 5 — Request 2 Arrives', 'A new request with the <span class="hl">same system prompt</span> but a different user question. The scheduler hashes the new prompt\'s blocks and checks the cache...'],
+    ['Step 6 — Cache HIT!', 'The system prompt tokens (<span class="yellow">"[SYS] You are a helpful"</span>) match cached blocks from Request 1. Their KV data is reused directly — <span class="green">zero recomputation</span> for these 5 tokens!'],
+    ['Step 7 — Only Unique Tokens Computed', 'Only the unique tokens (<span class="hl">"[U] 2+2?"</span>) need KV computation. That\'s 2 tokens instead of 7 — a <span class="green">71% reduction</span> in prefill compute work.'],
+    ['Step 8 — API Response: cached_tokens', 'This is what the <span class="hl">cached_tokens</span> field reports in the API response. Request 2 would show <span class="green">cached_tokens=5</span> — the 5 system prompt tokens reused from prefix cache.'],
+  ];
+  setNarration('narration1', narrations[prefixStep][0], narrations[prefixStep][1]);
+  document.getElementById('stepLabel1').textContent = `Step ${prefixStep} / ${prefixMax}`;
+  document.getElementById('prevBtn1').disabled = prefixStep <= 0;
+  document.getElementById('nextBtn1').disabled = prefixStep >= prefixMax;
+  renderProgress('progress1', prefixStep, prefixMax);
+}
+
+function prefixGo(dir) { prefixStep = Math.max(0, Math.min(prefixMax, prefixStep + dir)); renderPrefix(); }
+function prefixTogglePlay() {
+  prefixPlaying = !prefixPlaying;
+  updatePlayBtn(1, prefixPlaying);
+  if (prefixPlaying) { prefixPlayTick(); } else { clearTimeout(prefixTimer); }
+}
+function prefixPlayTick() {
+  if (!prefixPlaying) return;
+  if (prefixStep >= prefixMax) { prefixPlaying = false; updatePlayBtn(1, false); return; }
+  prefixStep++; renderPrefix();
+  prefixTimer = setTimeout(prefixPlayTick, parseInt(document.getElementById('speed1').value));
+}
+
+// Init
+renderKV();
+renderPrefix();
+</script>
+</body>
+</html>
