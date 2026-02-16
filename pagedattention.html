@@ -5,815 +5,472 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PagedAttention vs Traditional Memory Management</title>
 <style>
-body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    margin: 0;
-    padding: 20px;
-    background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
-    min-height: 100vh;
-    color: #e5e5e5;
-}
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: #0d1117; color: #e6edf3; min-height: 100vh; padding: 24px; }
+  h1 { text-align: center; font-size: 1.5rem; margin-bottom: 6px; color: #58a6ff; }
+  .subtitle { text-align: center; color: #8b949e; margin-bottom: 20px; font-size: 0.85rem; }
+  .container { max-width: 1200px; margin: 0 auto; }
 
-.memory-wasted {
-    background: linear-gradient(45deg, #666, #888);
-    color: #ccc;
-    opacity: 0.7;
-}
+  .controls { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+  .btn { padding: 8px 16px; border-radius: 6px; border: 1px solid #30363d; background: #21262d; color: #e6edf3; cursor: pointer; font-size: 0.85rem; font-weight: 600; transition: all 0.15s; user-select: none; display: inline-flex; align-items: center; gap: 5px; }
+  .btn:hover { background: #30363d; }
+  .btn.primary { background: #238636; border-color: #2ea043; }
+  .btn.primary:hover { background: #2ea043; }
+  .btn.play { background: #1f6feb; border-color: #388bfd; }
+  .btn.play:hover { background: #388bfd; }
+  .btn.stop { background: #9e1c23; border-color: #f85149; }
+  .btn.stop:hover { background: #b62324; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn svg { width: 14px; height: 14px; fill: currentColor; }
+  .step-label { color: #8b949e; font-size: 0.85rem; flex: 1; text-align: right; }
+  .speed-control { display: flex; align-items: center; gap: 6px; color: #8b949e; font-size: 0.75rem; }
+  .speed-control select { background: #161b22; color: #c9d1d9; border: 1px solid #30363d; border-radius: 4px; padding: 4px 6px; font-size: 0.75rem; cursor: pointer; }
 
-.container {
-    max-width: 1400px;
-    margin: 0 auto;
-    background: rgba(0, 0, 0, 0.4);
-    border-radius: 20px;
-    padding: 30px;
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-}
+  .progress-bar { display: flex; gap: 3px; margin-bottom: 16px; }
+  .progress-dot { flex: 1; height: 4px; border-radius: 2px; background: #21262d; transition: background 0.3s; }
+  .progress-dot.done { background: #238636; }
+  .progress-dot.current { background: #58a6ff; }
 
-h1 {
-    text-align: center;
-    margin-bottom: 30px;
-    font-size: 2.5em;
-    text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
-}
+  .narration { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 16px 20px; margin-bottom: 16px; min-height: 64px; }
+  .narration .step-title { display: block; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: #58a6ff; margin-bottom: 6px; }
+  .narration .step-body { display: block; font-size: 0.88rem; line-height: 1.6; color: #c9d1d9; }
+  .narration .step-body .hl { color: #58a6ff; font-weight: 600; }
+  .narration .step-body .yellow { color: #e3b341; font-weight: 600; }
+  .narration .step-body .green { color: #3fb950; font-weight: 600; }
+  .narration .step-body .red { color: #f85149; font-weight: 600; }
 
-.comparison-container {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 30px;
-    margin: 40px 0;
-}
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 16px; }
+  .legend-item { display: flex; align-items: center; gap: 5px; font-size: 0.72rem; color: #8b949e; }
+  .legend-dot { width: 14px; height: 14px; border-radius: 3px; }
 
-.memory-section {
-    background: rgba(0, 0, 0, 0.3);
-    border-radius: 15px;
-    padding: 25px;
-    border: 1px solid rgba(255, 255, 255, 0.05);
-}
+  .comparison-container { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .memory-section { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 16px; }
+  .section-title { font-size: 0.85rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 12px; text-align: center; }
+  .traditional-title { color: #f85149; }
+  .paged-title { color: #3fb950; }
 
-.section-title {
-    font-size: 1.6em;
-    margin-bottom: 20px;
-    text-align: center;
-    font-weight: bold;
-}
+  .memory-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 3px; margin: 10px 0; }
+  .memory-block { height: 28px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 0.6rem; font-weight: 700; transition: all 0.4s ease; border: 2px solid transparent; }
+  .memory-free { background: #161b22; border-color: #21262d; color: #484f58; }
+  .memory-wasted { background: #2a1d00; border-color: #9e6a03; color: #e3b341; opacity: 0.7; }
+  .memory-used-r1 { background: #1a0a2e; border-color: #8957e5; color: #a371f7; }
+  .memory-used-r2 { background: #122d1e; border-color: #2ea043; color: #3fb950; }
+  .memory-used-r3 { background: #0c2d48; border-color: #388bfd; color: #58a6ff; }
+  .memory-page-r1 { background: #1a0a2e; border-color: #8957e5; color: #a371f7; }
+  .memory-page-r2 { background: #122d1e; border-color: #2ea043; color: #3fb950; }
+  .memory-page-r3 { background: #0c2d48; border-color: #388bfd; color: #58a6ff; }
 
-.traditional-title { color: #ff6b6b; }
-.paged-title { color: #4ecdc4; }
+  .sequence-container { margin-top: 12px; padding: 12px; background: #0d1117; border: 1px solid #21262d; border-radius: 6px; }
+  .sequence-title { font-size: 0.7rem; font-weight: 700; color: #8b949e; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 8px; }
+  .token-sequence { display: flex; flex-wrap: wrap; gap: 3px; margin: 6px 0; }
+  .token { padding: 3px 6px; border-radius: 4px; font-size: 0.65rem; font-weight: 700; border: 1px solid transparent; transition: all 0.3s ease; }
+  .token-req1 { background: #1a0a2e; border-color: #8957e5; color: #a371f7; }
+  .token-req2 { background: #122d1e; border-color: #2ea043; color: #3fb950; }
+  .token-req3 { background: #0c2d48; border-color: #388bfd; color: #58a6ff; }
+  .token-generating { animation: pulse 0.8s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
 
-.memory-visualization {
-    background: rgba(0, 0, 0, 0.6);
-    border-radius: 10px;
-    padding: 20px;
-    margin: 20px 0;
-    position: relative;
-    overflow: hidden;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    min-height: 400px;
-}
+  .metrics-bar { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+  .metric { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 10px 16px; flex: 1; min-width: 120px; text-align: center; }
+  .metric-label { font-size: 0.65rem; color: #8b949e; text-transform: uppercase; letter-spacing: 0.04em; }
+  .metric-value { font-size: 1.2rem; font-weight: 800; margin-top: 2px; }
+  .metric-value.red { color: #f85149; }
+  .metric-value.green { color: #3fb950; }
+  .metric-value.blue { color: #58a6ff; }
 
-.memory-grid {
-    display: grid;
-    grid-template-columns: repeat(8, 1fr);
-    gap: 4px;
-    margin: 15px 0;
-}
+  .explanation { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 20px; margin-bottom: 16px; }
+  .explanation h3 { margin-top: 0; margin-bottom: 10px; color: #58a6ff; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.04em; }
+  .explanation p { font-size: 0.85rem; line-height: 1.6; color: #c9d1d9; margin-bottom: 8px; }
+  .explanation ul { font-size: 0.85rem; line-height: 1.8; color: #c9d1d9; padding-left: 20px; }
 
-.memory-block {
-    height: 30px;
-    border-radius: 4px;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.7em;
-    font-weight: bold;
-    transition: all 0.3s ease;
-    position: relative;
-}
+  .mapping-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 12px 0; }
+  .mapping-side h4 { font-size: 0.8rem; margin-bottom: 10px; }
+  .mapping-blocks { display: grid; gap: 3px; margin: 8px 0; }
+  .mapping-label { font-size: 0.8rem; font-weight: 600; margin: 4px 0; }
+  .mapping-highlight { text-align: center; margin-top: 12px; padding: 10px; background: #122d1e; border: 1px solid #2ea043; border-radius: 6px; font-size: 0.85rem; color: #3fb950; font-weight: 600; }
 
-.memory-free {
-    background: rgba(100, 100, 100, 0.3);
-    color: #ccc;
-}
-
-.memory-used-r1 {
-    background: linear-gradient(45deg, #ff6b6b, #ff8e53);
-    color: white;
-}
-
-.memory-used-r2 {
-    background: linear-gradient(45deg, #4ecdc4, #44a08d);
-    color: white;
-}
-
-.memory-used-r3 {
-    background: linear-gradient(45deg, #45b7d1, #96c93d);
-    color: white;
-}
-
-.memory-page-r1 {
-    background: linear-gradient(45deg, #ff6b6b, #ff8e53);
-    color: white;
-}
-
-.memory-page-r2 {
-    background: linear-gradient(45deg, #4ecdc4, #44a08d);
-    color: white;
-}
-
-.memory-page-r3 {
-    background: linear-gradient(45deg, #45b7d1, #96c93d);
-    color: white;
-}
-
-.sequence-container {
-    margin: 20px 0;
-    padding: 15px;
-    background: rgba(0, 0, 0, 0.4);
-    border-radius: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.sequence-title {
-    font-size: 1.1em;
-    font-weight: bold;
-    margin-bottom: 10px;
-    color: #4ecdc4;
-}
-
-.token-sequence {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-    margin: 10px 0;
-}
-
-.token {
-    padding: 4px 8px;
-    border-radius: 4px;
-    font-size: 0.8em;
-    font-weight: bold;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    transition: all 0.3s ease;
-}
-
-.token-req1 { background: linear-gradient(45deg, #ff6b6b, #ff8e53); color: white; }
-.token-req2 { background: linear-gradient(45deg, #4ecdc4, #44a08d); color: white; }
-.token-req3 { background: linear-gradient(45deg, #45b7d1, #96c93d); color: white; }
-
-.token-generating {
-    animation: pulse 1.5s infinite;
-    box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
-}
-
-@keyframes pulse {
-    0%, 100% { opacity: 0.8; transform: scale(1); }
-    50% { opacity: 1; transform: scale(1.1); }
-}
-
-.controls {
-    text-align: center;
-    margin: 30px 0;
-}
-
-.control-btn {
-    background: linear-gradient(45deg, #2c3e50, #34495e);
-    color: #e5e5e5;
-    border: none;
-    padding: 12px 24px;
-    margin: 0 10px;
-    border-radius: 25px;
-    cursor: pointer;
-    font-size: 1em;
-    font-weight: bold;
-    transition: all 0.3s ease;
-    border: 2px solid rgba(255, 255, 255, 0.1);
-}
-
-.control-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 20px rgba(0,0,0,0.5);
-    background: linear-gradient(45deg, #34495e, #2c3e50);
-}
-
-.control-btn:active {
-    transform: translateY(0);
-}
-
-.stats {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 20px;
-    margin-top: 30px;
-}
-
-.stat-card {
-    background: rgba(0, 0, 0, 0.3);
-    border-radius: 15px;
-    padding: 20px;
-    text-align: center;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.stat-title {
-    font-size: 1.1em;
-    margin-bottom: 10px;
-    font-weight: bold;
-}
-
-.stat-value {
-    font-size: 1.8em;
-    font-weight: bold;
-    margin: 10px 0;
-}
-
-.traditional-stat { color: #ff6b6b; }
-.paged-stat { color: #4ecdc4; }
-.improvement-stat { color: #96c93d; }
-
-.explanation {
-    background: rgba(0, 0, 0, 0.2);
-    border-radius: 10px;
-    padding: 20px;
-    margin: 20px 0;
-    border-left: 4px solid #4ecdc4;
-    border: 1px solid rgba(255, 255, 255, 0.05);
-}
-
-.explanation h3 {
-    margin-top: 0;
-    color: #4ecdc4;
-}
-
-.legend {
-    display: flex;
-    justify-content: center;
-    gap: 20px;
-    margin: 20px 0;
-    flex-wrap: wrap;
-}
-
-.legend-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 0.9em;
-}
-
-.legend-color {
-    width: 20px;
-    height: 20px;
-    border-radius: 4px;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-}
-
-.step-indicator {
-    text-align: center;
-    margin: 15px 0;
-    font-size: 1.1em;
-    font-weight: bold;
-    color: #4ecdc4;
-}
-
-@media (max-width: 768px) {
-    .comparison-container {
-        grid-template-columns: 1fr;
-        gap: 20px;
-    }
-    
-    .stats {
-        grid-template-columns: 1fr;
-    }
-    
-    .memory-grid {
-        grid-template-columns: repeat(6, 1fr);
-    }
-}
+  @media (max-width: 768px) {
+    .comparison-container { grid-template-columns: 1fr; }
+    .mapping-grid { grid-template-columns: 1fr; }
+    .memory-grid { grid-template-columns: repeat(6, 1fr); }
+  }
 </style>
 </head>
 <body>
+
 <div class="container">
-<h1>🧠 PagedAttention vs Traditional Memory</h1>
+  <h1>PagedAttention vs Traditional Memory</h1>
+  <p class="subtitle">How vLLM eliminates memory waste with virtual memory-inspired paging</p>
 
-<div class="legend">
-    <div class="legend-item">
-        <div class="legend-color memory-free"></div>
-        <span>Free Memory</span>
+  <div class="controls">
+    <button class="btn" id="prevBtn" onclick="go(-1)">
+      <svg viewBox="0 0 16 16"><path d="M9.78 12.78a.75.75 0 01-1.06 0L4.47 8.53a.75.75 0 010-1.06l4.25-4.25a.75.75 0 011.06 1.06L6.06 8l3.72 3.72a.75.75 0 010 1.06z"/></svg>
+      Prev
+    </button>
+    <button class="btn primary" id="nextBtn" onclick="go(1)">
+      Next
+      <svg viewBox="0 0 16 16"><path d="M6.22 3.22a.75.75 0 011.06 0l4.25 4.25a.75.75 0 010 1.06l-4.25 4.25a.75.75 0 01-1.06-1.06L9.94 8 6.22 4.28a.75.75 0 010-1.06z"/></svg>
+    </button>
+    <button class="btn play" id="playBtn" onclick="togglePlay()">
+      <svg id="playIcon" viewBox="0 0 16 16"><path d="M4 2l10 6-10 6z"/></svg>
+      <svg id="stopIcon" viewBox="0 0 16 16" style="display:none"><rect x="3" y="3" width="10" height="10" rx="1"/></svg>
+      <span id="playLabelEl">Play</span>
+    </button>
+    <div class="speed-control">
+      <label for="speedSel">Speed:</label>
+      <select id="speedSel">
+        <option value="3000">Slow</option>
+        <option value="1800" selected>Normal</option>
+        <option value="1000">Fast</option>
+      </select>
     </div>
-    <div class="legend-item">
-        <div class="legend-color memory-used-r1"></div>
-        <span>Request 1 (Traditional)</span>
-    </div>
-    <div class="legend-item">
-        <div class="legend-color memory-page-r1"></div>
-        <span>Request 1 (PagedAttention)</span>
-    </div>
-    <div class="legend-item">
-        <div class="legend-color memory-wasted"></div>
-        <span>Wasted Memory</span>
-    </div>
-</div>
+    <span class="step-label" id="stepLabel">Step 0 / 5</span>
+  </div>
 
-<div class="step-indicator" id="step-indicator">Step 1: Initial State - All memory free</div>
+  <div class="progress-bar" id="progressBar"></div>
 
-<div class="comparison-container">
+  <div class="narration" id="narration">
+    <span class="step-title">Getting Started</span>
+    <span class="step-body">Click <span class="hl">Next</span> to step through, or <span class="hl">Play</span> to auto-advance.</span>
+  </div>
+
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:#161b22;border:2px solid #21262d"></div> Free</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#1a0a2e;border:2px solid #8957e5"></div> Request 1</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#122d1e;border:2px solid #2ea043"></div> Request 2</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#0c2d48;border:2px solid #388bfd"></div> Request 3</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#2a1d00;border:2px solid #9e6a03"></div> Wasted</div>
+  </div>
+
+  <div class="comparison-container">
     <div class="memory-section">
-        <div class="section-title traditional-title">❌ Traditional Memory Management</div>
-        <div class="memory-visualization">
-            <div class="memory-grid" id="traditional-memory"></div>
-            <div class="sequence-container">
-                <div class="sequence-title">Request Sequences:</div>
-                <div id="traditional-sequences"></div>
-            </div>
-        </div>
+      <div class="section-title traditional-title">Traditional Memory</div>
+      <div class="memory-grid" id="traditional-memory"></div>
+      <div class="sequence-container">
+        <div class="sequence-title">Request Sequences</div>
+        <div id="traditional-sequences"></div>
+      </div>
     </div>
-    
     <div class="memory-section">
-        <div class="section-title paged-title">✅ PagedAttention Memory</div>
-        <div class="memory-visualization">
-            <div class="memory-grid" id="paged-memory"></div>
-            <div class="sequence-container">
-                <div class="sequence-title">Request Sequences:</div>
-                <div id="paged-sequences"></div>
-            </div>
+      <div class="section-title paged-title">PagedAttention Memory</div>
+      <div class="memory-grid" id="paged-memory"></div>
+      <div class="sequence-container">
+        <div class="sequence-title">Request Sequences</div>
+        <div id="paged-sequences"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="metrics-bar">
+    <div class="metric">
+      <div class="metric-label">Traditional Efficiency</div>
+      <div class="metric-value red" id="traditional-efficiency">0%</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">PagedAttention Efficiency</div>
+      <div class="metric-value green" id="paged-efficiency">0%</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Improvement</div>
+      <div class="metric-value blue" id="improvement">--</div>
+    </div>
+  </div>
+
+  <div class="explanation">
+    <h3>How PagedAttention Works</h3>
+    <p><strong>Traditional:</strong> Pre-allocates large contiguous blocks (20 per request) for max sequence length, wasting memory when sequences are shorter.</p>
+    <p><strong>PagedAttention:</strong> Uses fixed-size pages (4 tokens/page). Memory allocated dynamically as sequences grow, eliminating internal fragmentation.</p>
+
+    <div class="mapping-grid">
+      <div class="mapping-side">
+        <h4 style="color: #f85149;">Traditional: 1 Token = 1 Block</h4>
+        <div class="token-sequence">
+          <span class="token token-req1">The</span>
+          <span class="token token-req1">quick</span>
+          <span class="token token-req1">brown</span>
+          <span class="token token-req1">fox</span>
+          <span class="token token-req1">jumps</span>
         </div>
-    </div>
-</div>
-
-<div class="controls">
-    <button class="control-btn" onclick="playAnimation()">▶️ Play Animation</button>
-    <button class="control-btn" onclick="nextStep()">⏭️ Next Step</button>
-    <button class="control-btn" onclick="resetAnimation()">🔄 Reset</button>
-</div>
-
-<div class="stats">
-    <div class="stat-card">
-        <div class="stat-title traditional-stat">Traditional Efficiency</div>
-        <div class="stat-value traditional-stat" id="traditional-efficiency">45%</div>
-        <div>Memory Utilization</div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-title paged-stat">PagedAttention Efficiency</div>
-        <div class="stat-value paged-stat" id="paged-efficiency">92%</div>
-        <div>Memory Utilization</div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-title improvement-stat">Improvement</div>
-        <div class="stat-value improvement-stat" id="improvement">2.0x</div>
-        <div>Memory Efficiency</div>
-    </div>
-</div>
-
-<div class="explanation">
-    <h3>🏷️ Block Label Explanation</h3>
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin: 15px 0;">
-        <div><strong>Numbers (0-63):</strong> Original memory block addresses</div>
-        <div><strong>R1, R2, R3:</strong> Request 1, 2, 3 data storage</div>
-        <div><strong>W:</strong> Wasted/Reserved but unused memory</div>
-        <div><strong>Free blocks:</strong> Available memory (gray)</div>
-    </div>
-    
-    <h3>🔑 Token-to-Memory Mapping</h3>
-    <div style="background: rgba(0, 0, 0, 0.4); border-radius: 10px; padding: 20px; margin: 20px 0; border: 1px solid rgba(255, 255, 255, 0.1);">
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px;">
-            <div>
-                <h4 style="color: #ff6b6b; margin-bottom: 15px;">🔴 Traditional: 1 Token = 1 Block</h4>
-                <div class="token-sequence" style="margin-bottom: 10px;">
-                    <span class="token token-req1">The</span>
-                    <span class="token token-req1">quick</span>
-                    <span class="token token-req1">brown</span>
-                    <span class="token token-req1">fox</span>
-                    <span class="token token-req1">jumps</span>
-                </div>
-                <div style="font-size: 1.2em; margin: 10px 0;">⬇️</div>
-                <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; margin-bottom: 15px;">
-                    <div class="memory-block memory-used-r1" style="height: 25px; font-size: 0.7em;">R1</div>
-                    <div class="memory-block memory-used-r1" style="height: 25px; font-size: 0.7em;">R1</div>
-                    <div class="memory-block memory-used-r1" style="height: 25px; font-size: 0.7em;">R1</div>
-                    <div class="memory-block memory-used-r1" style="height: 25px; font-size: 0.7em;">R1</div>
-                    <div class="memory-block memory-used-r1" style="height: 25px; font-size: 0.7em;">R1</div>
-                </div>
-                <div style="color: #ff6b6b; font-weight: bold;">5 tokens = 5 blocks</div>
-                <div style="color: #ff6b6b; font-size: 0.9em;">+ 15 wasted blocks (pre-allocated)</div>
-                <div style="color: #ff6b6b; font-weight: bold; font-size: 1.1em;">= 20 total blocks</div>
-            </div>
-            
-            <div>
-                <h4 style="color: #4ecdc4; margin-bottom: 15px;">🟢 PagedAttention: 4 Tokens = 1 Page</h4>
-                <div class="token-sequence" style="margin-bottom: 10px;">
-                    <span class="token token-req1">The</span>
-                    <span class="token token-req1">quick</span>
-                    <span class="token token-req1">brown</span>
-                    <span class="token token-req1">fox</span>
-                    <span class="token token-req1">jumps</span>
-                </div>
-                <div style="font-size: 1.2em; margin: 10px 0;">⬇️</div>
-                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; margin-bottom: 15px;">
-                    <div class="memory-block memory-page-r1" style="height: 25px; font-size: 0.7em; display: flex; flex-direction: column; justify-content: center; line-height: 1.1;">
-                        <div>Page 1</div>
-                        <small style="font-size: 0.6em;">4 tokens</small>
-                    </div>
-                    <div class="memory-block memory-page-r1" style="height: 25px; font-size: 0.7em; display: flex; flex-direction: column; justify-content: center; line-height: 1.1;">
-                        <div>Page 2</div>
-                        <small style="font-size: 0.6em;">1 token</small>
-                    </div>
-                </div>
-                <div style="color: #4ecdc4; font-weight: bold;">5 tokens = 2 pages</div>
-                <div style="color: #4ecdc4; font-size: 0.9em;">+ 0 wasted pages</div>
-                <div style="color: #4ecdc4; font-weight: bold; font-size: 1.1em;">= 2 total pages</div>
-            </div>
+        <div class="mapping-blocks" style="grid-template-columns: repeat(5, 1fr);">
+          <div class="memory-block memory-used-r1" style="height:22px;font-size:0.6rem">R1</div>
+          <div class="memory-block memory-used-r1" style="height:22px;font-size:0.6rem">R1</div>
+          <div class="memory-block memory-used-r1" style="height:22px;font-size:0.6rem">R1</div>
+          <div class="memory-block memory-used-r1" style="height:22px;font-size:0.6rem">R1</div>
+          <div class="memory-block memory-used-r1" style="height:22px;font-size:0.6rem">R1</div>
         </div>
-        
-        <div style="text-align: center; margin-top: 20px; padding: 15px; background: rgba(96, 201, 60, 0.2); border-radius: 8px; border: 1px solid rgba(96, 201, 60, 0.3);">
-            <strong style="color: #60c93c; font-size: 1.2em;">💡 Efficiency Gain: 20 blocks → 2 pages = 10x less memory!</strong>
+        <div class="mapping-label" style="color:#f85149">5 tokens = 5 blocks + 15 wasted = 20 total</div>
+      </div>
+      <div class="mapping-side">
+        <h4 style="color: #3fb950;">PagedAttention: 4 Tokens = 1 Page</h4>
+        <div class="token-sequence">
+          <span class="token token-req1">The</span>
+          <span class="token token-req1">quick</span>
+          <span class="token token-req1">brown</span>
+          <span class="token token-req1">fox</span>
+          <span class="token token-req1">jumps</span>
         </div>
+        <div class="mapping-blocks" style="grid-template-columns: repeat(2, 1fr);">
+          <div class="memory-block memory-page-r1" style="height:22px;font-size:0.6rem">Page 1</div>
+          <div class="memory-block memory-page-r1" style="height:22px;font-size:0.6rem">Page 2</div>
+        </div>
+        <div class="mapping-label" style="color:#3fb950">5 tokens = 2 pages + 0 wasted = 2 total</div>
+      </div>
     </div>
-    
-    <h3>🔑 How PagedAttention Works</h3>
-    <p><strong>Traditional Approach:</strong> Pre-allocates large contiguous memory blocks (20 blocks per request) for maximum sequence length, leading to significant waste when sequences are shorter than expected.</p>
-    <p><strong>PagedAttention:</strong> Uses virtual memory concepts with fixed-size pages (typically 4 tokens per page). Memory is allocated dynamically as sequences grow, eliminating internal fragmentation.</p>
-    <p><strong>Key Benefits:</strong></p>
-    <ul>
-        <li>📈 <strong>2-3x higher memory efficiency</strong> by eliminating wasted allocation</li>
-        <li>🔄 <strong>Dynamic allocation</strong> allows sequences to grow and shrink naturally</li>
-        <li>🧩 <strong>Non-contiguous storage</strong> reduces memory fragmentation</li>
-        <li>⚡ <strong>Better batching</strong> enables higher throughput with same hardware</li>
-    </ul>
-</div>
-
-<div style="text-align: center; margin-top: 30px; padding: 15px; background: rgba(0, 0, 0, 0.2); border-radius: 10px; font-size: 0.9em; color: rgba(255, 255, 255, 0.7); border: 1px solid rgba(255, 255, 255, 0.05);">
-    Created by <strong style="color: #4ecdc4;">raihanafiandi</strong> • Inspired by vLLM PagedAttention
-</div>
+    <div class="mapping-highlight">10x less memory: 20 blocks vs 2 pages</div>
+  </div>
 </div>
 
 <script>
-let currentStep = 0;
-let animationRunning = false;
-let autoPlay = false;
+var currentStep = 0;
+var MAX = 5;
+var playing = false;
+var playTimer = null;
 
-const steps = [
-    "Step 1: Initial State - All memory free",
-    "Step 2: First requests arrive - Allocating memory",
-    "Step 3: Sequences generating tokens - Growing dynamically",
-    "Step 4: Some sequences complete - Memory freed",
-    "Step 5: New requests arrive - Efficient reallocation",
-    "Step 6: Final state - Optimal memory usage"
+var sequences = [
+  { id: 'req1', tokens: ['The','quick','brown','fox','jumps','over','the','lazy','dog'], cls: 'token-req1' },
+  { id: 'req2', tokens: ['Hello','world','this','is','a','test'], cls: 'token-req2' },
+  { id: 'req3', tokens: ['AI','is','transforming','everything'], cls: 'token-req3' }
 ];
 
-const sequences = [
-    { id: 'req1', tokens: ['The', 'quick', 'brown', 'fox', 'jumps', 'over', 'the', 'lazy', 'dog'], class: 'token-req1' },
-    { id: 'req2', tokens: ['Hello', 'world', 'this', 'is', 'a', 'test'], class: 'token-req2' },
-    { id: 'req3', tokens: ['AI', 'is', 'transforming', 'everything'], class: 'token-req3' }
+var narrations = [
+  ['Getting Started',
+   'Click <span class="hl">Next</span> to step through, or <span class="hl">Play</span> to auto-advance. We compare how Traditional and PagedAttention manage <span class="hl">64 memory blocks</span> across 3 concurrent requests.'],
+  ['Step 1 — Request 1 Arrives',
+   'Traditional: allocates <span class="red">20 contiguous blocks</span> but only uses 9 for tokens — 11 are <span class="yellow">wasted</span>. PagedAttention: allocates only <span class="green">3 pages</span> (ceil(9/4)), zero waste.'],
+  ['Step 2 — Request 2 Joins',
+   'Traditional: another <span class="red">20 blocks reserved</span>, only 6 used — 14 <span class="yellow">wasted</span>. Total: 40 blocks consumed, 25 wasted. PagedAttention adds just <span class="green">2 more pages</span>. Total: 5 pages, zero waste.'],
+  ['Step 3 — All 3 Requests Active',
+   'Traditional: <span class="red">60 of 64 blocks consumed</span>, but only 19 hold actual data — 41 are <span class="yellow">wasted</span>. PagedAttention uses only <span class="green">7 pages</span> total, leaving 57 blocks free for more requests.'],
+  ['Step 4 — Request 1 Completes',
+   'Traditional: Request 1\'s 20 blocks become <span class="yellow">wasted</span> — the memory often can\'t be reclaimed until all requests in the batch finish. PagedAttention <span class="green">instantly frees</span> the 3 pages, available for new requests.'],
+  ['Step 5 — Final Comparison',
+   'Traditional achieves only <span class="red">35% efficiency</span> — most memory is wasted on pre-allocation. PagedAttention achieves <span class="green">92% efficiency</span> through dynamic, page-granular allocation. That\'s a <span class="hl">2.6x improvement</span>.']
 ];
 
 function initializeMemory() {
-    const traditionalGrid = document.getElementById('traditional-memory');
-    const pagedGrid = document.getElementById('paged-memory');
-    
-    // Clear existing content
-    traditionalGrid.innerHTML = '';
-    pagedGrid.innerHTML = '';
-    
-    // Create 64 memory blocks for each grid
-    for (let i = 0; i < 64; i++) {
-        const traditionalBlock = document.createElement('div');
-        traditionalBlock.className = 'memory-block memory-free';
-        traditionalBlock.textContent = i.toString();
-        traditionalBlock.id = `trad-${i}`;
-        traditionalGrid.appendChild(traditionalBlock);
-        
-        const pagedBlock = document.createElement('div');
-        pagedBlock.className = 'memory-block memory-free';
-        pagedBlock.textContent = i.toString();
-        pagedBlock.id = `page-${i}`;
-        pagedGrid.appendChild(pagedBlock);
-    }
+  var tGrid = document.getElementById('traditional-memory');
+  var pGrid = document.getElementById('paged-memory');
+  tGrid.innerHTML = '';
+  pGrid.innerHTML = '';
+  for (var i = 0; i < 64; i++) {
+    var tb = document.createElement('div');
+    tb.className = 'memory-block memory-free';
+    tb.textContent = i;
+    tb.id = 'trad-' + i;
+    tGrid.appendChild(tb);
+    var pb = document.createElement('div');
+    pb.className = 'memory-block memory-free';
+    pb.textContent = i;
+    pb.id = 'page-' + i;
+    pGrid.appendChild(pb);
+  }
 }
 
-function updateSequenceDisplay(containerId, sequencesToShow, step) {
-    const container = document.getElementById(containerId);
-    if (!container) return;
-    
-    container.innerHTML = '';
-    
-    sequencesToShow.forEach((seq, seqIndex) => {
-        const seqDiv = document.createElement('div');
-        seqDiv.innerHTML = `<strong>${seq.id.toUpperCase()}:</strong>`;
-        const tokenDiv = document.createElement('div');
-        tokenDiv.className = 'token-sequence';
-        
-        // Show more tokens as steps progress
-        const tokensToShow = Math.min(seq.tokens.length, Math.max(1, step * 2 + seqIndex + 1));
-        
-        for (let i = 0; i < tokensToShow; i++) {
-            const token = document.createElement('span');
-            token.className = `token ${seq.class}`;
-            token.textContent = seq.tokens[i];
-            
-            // Add generating animation to the last token if sequence isn't complete
-            if (i === tokensToShow - 1 && tokensToShow < seq.tokens.length) {
-                token.classList.add('token-generating');
-            }
-            
-            tokenDiv.appendChild(token);
-        }
-        
-        // Add ellipsis if there are more tokens
-        if (tokensToShow < seq.tokens.length) {
-            const ellipsis = document.createElement('span');
-            ellipsis.className = 'token';
-            ellipsis.textContent = '...';
-            ellipsis.style.background = 'rgba(255,255,255,0.2)';
-            ellipsis.style.color = '#ccc';
-            tokenDiv.appendChild(ellipsis);
-        }
-        
-        seqDiv.appendChild(tokenDiv);
-        container.appendChild(seqDiv);
-    });
-}
-
-function animateStep(step) {
-    console.log('Animating step:', step); // Debug log
-    document.getElementById('step-indicator').textContent = steps[step] || steps[steps.length - 1];
-    
-    // Reset all blocks to free with original numbers
-    for (let i = 0; i < 64; i++) {
-        const tradBlock = document.getElementById(`trad-${i}`);
-        const pageBlock = document.getElementById(`page-${i}`);
-        
-        if (tradBlock) {
-            tradBlock.className = 'memory-block memory-free';
-            tradBlock.textContent = i.toString();
-        }
-        if (pageBlock) {
-            pageBlock.className = 'memory-block memory-free';
-            pageBlock.textContent = i.toString();
-        }
+function updateSequenceDisplay(containerId, seqsToShow, step) {
+  var container = document.getElementById(containerId);
+  if (!container) return;
+  container.innerHTML = '';
+  for (var si = 0; si < seqsToShow.length; si++) {
+    var seq = seqsToShow[si];
+    var seqDiv = document.createElement('div');
+    seqDiv.innerHTML = '<strong>' + seq.id.toUpperCase() + ':</strong>';
+    var tokenDiv = document.createElement('div');
+    tokenDiv.className = 'token-sequence';
+    var tokensToShow = Math.min(seq.tokens.length, Math.max(1, step * 2 + si + 1));
+    for (var i = 0; i < tokensToShow; i++) {
+      var tok = document.createElement('span');
+      tok.className = 'token ' + seq.cls;
+      tok.textContent = seq.tokens[i];
+      if (i === tokensToShow - 1 && tokensToShow < seq.tokens.length) tok.classList.add('token-generating');
+      tokenDiv.appendChild(tok);
     }
-    
-    switch(step) {
-        case 0:
-            // Initial state - all free
-            updateSequenceDisplay('traditional-sequences', [], step);
-            updateSequenceDisplay('paged-sequences', [], step);
-            updateStats(0, 0);
-            break;
-            
-        case 1:
-            // Traditional: Allocate large blocks for Request 1
-            // Allocates 20 blocks but only uses ~9 tokens
-            for (let i = 0; i < 9; i++) {
-                document.getElementById(`trad-${i}`).className = 'memory-block memory-used-r1';
-                document.getElementById(`trad-${i}`).textContent = 'R1'; // R1 = Request 1 data
-            }
-            for (let i = 9; i < 20; i++) {
-                document.getElementById(`trad-${i}`).className = 'memory-block memory-wasted';
-                document.getElementById(`trad-${i}`).textContent = 'W'; // W = Wasted/Reserved but unused
-            }
-            
-            // PagedAttention: Allocate only needed pages (3 pages of 4 tokens each)
-            for (let i = 0; i < 3; i++) {
-                document.getElementById(`page-${i}`).className = 'memory-block memory-page-r1';
-                document.getElementById(`page-${i}`).textContent = 'R1'; // R1 = Request 1 pages
-            }
-            
-            updateSequenceDisplay('traditional-sequences', [sequences[0]], step);
-            updateSequenceDisplay('paged-sequences', [sequences[0]], step);
-            updateStats(45, 75);
-            break;
-            
-        case 2:
-            // Traditional: Add Request 2, more waste
-            // Request 1: blocks 0-19
-            for (let i = 0; i < 9; i++) {
-                document.getElementById(`trad-${i}`).className = 'memory-block memory-used-r1';
-                document.getElementById(`trad-${i}`).textContent = 'R1';
-            }
-            for (let i = 9; i < 20; i++) {
-                document.getElementById(`trad-${i}`).className = 'memory-block memory-wasted';
-                document.getElementById(`trad-${i}`).textContent = 'W';
-            }
-            
-            // Request 2: blocks 20-39 (6 tokens need 6 blocks, waste 14)
-            for (let i = 20; i < 26; i++) {
-                document.getElementById(`trad-${i}`).className = 'memory-block memory-used-r2';
-                document.getElementById(`trad-${i}`).textContent = 'R2'; // R2 = Request 2 data
-            }
-            for (let i = 26; i < 40; i++) {
-                document.getElementById(`trad-${i}`).className = 'memory-block memory-wasted';
-                document.getElementById(`trad-${i}`).textContent = 'W';
-            }
-            
-            // PagedAttention: Efficient allocation
-            for (let i = 0; i < 3; i++) {
-                document.getElementById(`page-${i}`).className = 'memory-block memory-page-r1';
-                document.getElementById(`page-${i}`).textContent = 'R1';
-            }
-            for (let i = 3; i < 5; i++) {
-                document.getElementById(`page-${i}`).className = 'memory-block memory-page-r2';
-                document.getElementById(`page-${i}`).textContent = 'R2'; // R2 = Request 2 pages
-            }
-            
-            updateSequenceDisplay('traditional-sequences', sequences.slice(0, 2), step);
-            updateSequenceDisplay('paged-sequences', sequences.slice(0, 2), step);
-            updateStats(38, 83);
-            break;
-            
-        case 3:
-            // Traditional: Add Request 3, maximum waste
-            // All three requests with large allocations
-            let tradIndex = 0;
-            sequences.forEach((seq, seqIndex) => {
-                const allocSize = 20; // Always allocate 20 blocks per request
-                const actualUsed = seq.tokens.length; // Actual tokens needed
-                
-                for (let i = 0; i < allocSize && tradIndex + i < 64; i++) {
-                    const blockId = `trad-${tradIndex + i}`;
-                    const block = document.getElementById(blockId);
-                    if (block) {
-                        if (i < actualUsed) {
-                            block.className = `memory-block memory-used-r${seqIndex + 1}`;
-                            block.textContent = `R${seqIndex + 1}`;
-                        } else {
-                            block.className = 'memory-block memory-wasted';
-                            block.textContent = 'W';
-                        }
-                    }
-                }
-                tradIndex += allocSize;
-            });
-            
-            // PagedAttention: Exact allocation
-            let pageIndex = 0;
-            sequences.forEach((seq, seqIndex) => {
-                const pages = Math.ceil(seq.tokens.length / 4); // 4 tokens per page
-                for (let i = 0; i < pages && pageIndex < 64; i++) {
-                    document.getElementById(`page-${pageIndex}`).className = `memory-block memory-page-r${seqIndex + 1}`;
-                    document.getElementById(`page-${pageIndex}`).textContent = `R${seqIndex + 1}`;
-                    pageIndex++;
-                }
-            });
-            
-            updateSequenceDisplay('traditional-sequences', sequences, step);
-            updateSequenceDisplay('paged-sequences', sequences, step);
-            updateStats(32, 87);
-            break;
-            
-        case 4:
-            // Traditional: Request 1 completes, but memory block remains allocated (wasted)
-            for (let i = 0; i < 20; i++) {
-                document.getElementById(`trad-${i}`).className = 'memory-block memory-wasted';
-                document.getElementById(`trad-${i}`).textContent = 'W'; // Still allocated but request is done
-            }
-            // Request 2 continues
-            for (let i = 20; i < 26; i++) {
-                document.getElementById(`trad-${i}`).className = 'memory-block memory-used-r2';
-                document.getElementById(`trad-${i}`).textContent = 'R2';
-            }
-            for (let i = 26; i < 40; i++) {
-                document.getElementById(`trad-${i}`).className = 'memory-block memory-wasted';
-                document.getElementById(`trad-${i}`).textContent = 'W';
-            }
-            // Request 3 continues
-            for (let i = 40; i < 44; i++) {
-                document.getElementById(`trad-${i}`).className = 'memory-block memory-used-r3';
-                document.getElementById(`trad-${i}`).textContent = 'R3';
-            }
-            for (let i = 44; i < 60; i++) {
-                document.getElementById(`trad-${i}`).className = 'memory-block memory-wasted';
-                document.getElementById(`trad-${i}`).textContent = 'W';
-            }
-            
-            // PagedAttention: Memory freed immediately when Request 1 completes
-            let pIndex = 0;
-            sequences.slice(1).forEach((seq, seqIndex) => { // Skip first sequence (completed)
-                const pages = Math.ceil(seq.tokens.length / 4);
-                for (let i = 0; i < pages && pIndex < 64; i++) {
-                    document.getElementById(`page-${pIndex}`).className = `memory-block memory-page-r${seqIndex + 2}`;
-                    document.getElementById(`page-${pIndex}`).textContent = `R${seqIndex + 2}`;
-                    pIndex++;
-                }
-            });
-            
-            updateSequenceDisplay('traditional-sequences', sequences.slice(1), step);
-            updateSequenceDisplay('paged-sequences', sequences.slice(1), step);
-            updateStats(25, 91);
-            break;
-            
-        case 5:
-            // Final state: New requests can be added efficiently
-            // Traditional: All three requests with large allocations
-            sequences.forEach((seq, seqIndex) => {
-                const startBlock = seqIndex * 20;
-                const actualUsed = seq.tokens.length;
-                
-                for (let i = 0; i < 20 && startBlock + i < 64; i++) {
-                    const block = document.getElementById(`trad-${startBlock + i}`);
-                    if (block) {
-                        if (i < actualUsed) {
-                            block.className = `memory-block memory-used-r${seqIndex + 1}`;
-                            block.textContent = `R${seqIndex + 1}`;
-                        } else {
-                            block.className = 'memory-block memory-wasted';
-                            block.textContent = 'W';
-                        }
-                    }
-                }
-            });
-            
-            // PagedAttention: Optimal packing
-            let finalPageIndex = 0;
-            sequences.forEach((seq, seqIndex) => {
-                const pages = Math.ceil(seq.tokens.length / 4);
-                for (let i = 0; i < pages && finalPageIndex < 64; i++) {
-                    document.getElementById(`page-${finalPageIndex}`).className = `memory-block memory-page-r${seqIndex + 1}`;
-                    document.getElementById(`page-${finalPageIndex}`).textContent = `R${seqIndex + 1}`;
-                    finalPageIndex++;
-                }
-            });
-            
-            updateSequenceDisplay('traditional-sequences', sequences, step);
-            updateSequenceDisplay('paged-sequences', sequences, step);
-            updateStats(35, 92);
-            break;
+    if (tokensToShow < seq.tokens.length) {
+      var ell = document.createElement('span');
+      ell.className = 'token';
+      ell.textContent = '...';
+      ell.style.background = 'rgba(255,255,255,0.05)';
+      ell.style.color = '#484f58';
+      ell.style.border = '1px solid #21262d';
+      tokenDiv.appendChild(ell);
     }
-    
-    currentStep = step;
+    seqDiv.appendChild(tokenDiv);
+    container.appendChild(seqDiv);
+  }
 }
 
 function updateStats(tradEff, pagedEff) {
-    const tradElement = document.getElementById('traditional-efficiency');
-    const pagedElement = document.getElementById('paged-efficiency');
-    const improvementElement = document.getElementById('improvement');
-    
-    if (tradElement) tradElement.textContent = tradEff + '%';
-    if (pagedElement) pagedElement.textContent = pagedEff + '%';
-    
-    if (improvementElement && tradEff > 0) {
-        const improvement = (pagedEff / tradEff).toFixed(1);
-        improvementElement.textContent = improvement + 'x';
-    } else if (improvementElement) {
-        improvementElement.textContent = '--';
-    }
+  document.getElementById('traditional-efficiency').textContent = tradEff + '%';
+  document.getElementById('paged-efficiency').textContent = pagedEff + '%';
+  if (tradEff > 0) {
+    document.getElementById('improvement').textContent = (pagedEff / tradEff).toFixed(1) + 'x';
+  } else {
+    document.getElementById('improvement').textContent = '--';
+  }
 }
 
-function nextStep() {
-    if (currentStep < steps.length - 1) {
-        animateStep(currentStep + 1);
-    }
-}
+function render() {
+  // Reset all blocks
+  for (var i = 0; i < 64; i++) {
+    var tb = document.getElementById('trad-' + i);
+    var pb = document.getElementById('page-' + i);
+    if (tb) { tb.className = 'memory-block memory-free'; tb.textContent = i; }
+    if (pb) { pb.className = 'memory-block memory-free'; pb.textContent = i; }
+  }
 
-function playAnimation() {
-    if (animationRunning) return;
-    
-    animationRunning = true;
-    autoPlay = true;
-    console.log('Starting animation...');
-    
-    // Start from step 0
-    let step = 0;
-    animateStep(step);
-    
-    const playInterval = setInterval(() => {
-        step++;
-        console.log('Playing step:', step);
-        
-        if (step < steps.length && autoPlay) {
-            animateStep(step);
-        } else {
-            console.log('Animation complete');
-            clearInterval(playInterval);
-            animationRunning = false;
-            autoPlay = false;
+  switch (currentStep) {
+    case 0:
+      updateSequenceDisplay('traditional-sequences', [], 0);
+      updateSequenceDisplay('paged-sequences', [], 0);
+      updateStats(0, 0);
+      break;
+    case 1:
+      for (var i = 0; i < 9; i++) { document.getElementById('trad-' + i).className = 'memory-block memory-used-r1'; document.getElementById('trad-' + i).textContent = 'R1'; }
+      for (var i = 9; i < 20; i++) { document.getElementById('trad-' + i).className = 'memory-block memory-wasted'; document.getElementById('trad-' + i).textContent = 'W'; }
+      for (var i = 0; i < 3; i++) { document.getElementById('page-' + i).className = 'memory-block memory-page-r1'; document.getElementById('page-' + i).textContent = 'R1'; }
+      updateSequenceDisplay('traditional-sequences', [sequences[0]], 1);
+      updateSequenceDisplay('paged-sequences', [sequences[0]], 1);
+      updateStats(45, 75);
+      break;
+    case 2:
+      for (var i = 0; i < 9; i++) { document.getElementById('trad-' + i).className = 'memory-block memory-used-r1'; document.getElementById('trad-' + i).textContent = 'R1'; }
+      for (var i = 9; i < 20; i++) { document.getElementById('trad-' + i).className = 'memory-block memory-wasted'; document.getElementById('trad-' + i).textContent = 'W'; }
+      for (var i = 20; i < 26; i++) { document.getElementById('trad-' + i).className = 'memory-block memory-used-r2'; document.getElementById('trad-' + i).textContent = 'R2'; }
+      for (var i = 26; i < 40; i++) { document.getElementById('trad-' + i).className = 'memory-block memory-wasted'; document.getElementById('trad-' + i).textContent = 'W'; }
+      for (var i = 0; i < 3; i++) { document.getElementById('page-' + i).className = 'memory-block memory-page-r1'; document.getElementById('page-' + i).textContent = 'R1'; }
+      for (var i = 3; i < 5; i++) { document.getElementById('page-' + i).className = 'memory-block memory-page-r2'; document.getElementById('page-' + i).textContent = 'R2'; }
+      updateSequenceDisplay('traditional-sequences', sequences.slice(0, 2), 2);
+      updateSequenceDisplay('paged-sequences', sequences.slice(0, 2), 2);
+      updateStats(38, 83);
+      break;
+    case 3:
+      var tradIdx = 0;
+      for (var si = 0; si < sequences.length; si++) {
+        var used = sequences[si].tokens.length;
+        for (var j = 0; j < 20 && tradIdx + j < 64; j++) {
+          var b = document.getElementById('trad-' + (tradIdx + j));
+          if (b) {
+            if (j < used) { b.className = 'memory-block memory-used-r' + (si + 1); b.textContent = 'R' + (si + 1); }
+            else { b.className = 'memory-block memory-wasted'; b.textContent = 'W'; }
+          }
         }
-    }, 2500);
+        tradIdx += 20;
+      }
+      var pageIdx = 0;
+      for (var si = 0; si < sequences.length; si++) {
+        var pages = Math.ceil(sequences[si].tokens.length / 4);
+        for (var j = 0; j < pages && pageIdx < 64; j++) {
+          document.getElementById('page-' + pageIdx).className = 'memory-block memory-page-r' + (si + 1);
+          document.getElementById('page-' + pageIdx).textContent = 'R' + (si + 1);
+          pageIdx++;
+        }
+      }
+      updateSequenceDisplay('traditional-sequences', sequences, 3);
+      updateSequenceDisplay('paged-sequences', sequences, 3);
+      updateStats(32, 87);
+      break;
+    case 4:
+      for (var i = 0; i < 20; i++) { document.getElementById('trad-' + i).className = 'memory-block memory-wasted'; document.getElementById('trad-' + i).textContent = 'W'; }
+      for (var i = 20; i < 26; i++) { document.getElementById('trad-' + i).className = 'memory-block memory-used-r2'; document.getElementById('trad-' + i).textContent = 'R2'; }
+      for (var i = 26; i < 40; i++) { document.getElementById('trad-' + i).className = 'memory-block memory-wasted'; document.getElementById('trad-' + i).textContent = 'W'; }
+      for (var i = 40; i < 44; i++) { document.getElementById('trad-' + i).className = 'memory-block memory-used-r3'; document.getElementById('trad-' + i).textContent = 'R3'; }
+      for (var i = 44; i < 60; i++) { document.getElementById('trad-' + i).className = 'memory-block memory-wasted'; document.getElementById('trad-' + i).textContent = 'W'; }
+      var pIdx = 0;
+      for (var si = 1; si < sequences.length; si++) {
+        var pages = Math.ceil(sequences[si].tokens.length / 4);
+        for (var j = 0; j < pages && pIdx < 64; j++) {
+          document.getElementById('page-' + pIdx).className = 'memory-block memory-page-r' + (si + 1);
+          document.getElementById('page-' + pIdx).textContent = 'R' + (si + 1);
+          pIdx++;
+        }
+      }
+      updateSequenceDisplay('traditional-sequences', sequences.slice(1), 4);
+      updateSequenceDisplay('paged-sequences', sequences.slice(1), 4);
+      updateStats(25, 91);
+      break;
+    case 5:
+      for (var si = 0; si < sequences.length; si++) {
+        var start = si * 20;
+        var used = sequences[si].tokens.length;
+        for (var j = 0; j < 20 && start + j < 64; j++) {
+          var b = document.getElementById('trad-' + (start + j));
+          if (b) {
+            if (j < used) { b.className = 'memory-block memory-used-r' + (si + 1); b.textContent = 'R' + (si + 1); }
+            else { b.className = 'memory-block memory-wasted'; b.textContent = 'W'; }
+          }
+        }
+      }
+      var fpIdx = 0;
+      for (var si = 0; si < sequences.length; si++) {
+        var pages = Math.ceil(sequences[si].tokens.length / 4);
+        for (var j = 0; j < pages && fpIdx < 64; j++) {
+          document.getElementById('page-' + fpIdx).className = 'memory-block memory-page-r' + (si + 1);
+          document.getElementById('page-' + fpIdx).textContent = 'R' + (si + 1);
+          fpIdx++;
+        }
+      }
+      updateSequenceDisplay('traditional-sequences', sequences, 5);
+      updateSequenceDisplay('paged-sequences', sequences, 5);
+      updateStats(35, 92);
+      break;
+  }
+
+  // Narration
+  var n = narrations[currentStep];
+  document.getElementById('narration').innerHTML =
+    '<span class="step-title">' + n[0] + '</span><span class="step-body">' + n[1] + '</span>';
+
+  // Progress bar
+  var pEl = document.getElementById('progressBar');
+  pEl.innerHTML = '';
+  for (var i = 0; i <= MAX; i++) {
+    var dot = document.createElement('div');
+    dot.className = 'progress-dot';
+    if (i < currentStep) dot.className += ' done';
+    else if (i === currentStep) dot.className += ' current';
+    pEl.appendChild(dot);
+  }
+
+  // Button states
+  document.getElementById('stepLabel').textContent = 'Step ' + currentStep + ' / ' + MAX;
+  document.getElementById('prevBtn').disabled = (currentStep <= 0);
+  document.getElementById('nextBtn').disabled = (currentStep >= MAX);
 }
 
-function resetAnimation() {
-    console.log('Resetting animation...');
-    autoPlay = false;
-    animationRunning = false;
-    currentStep = 0;
-    
-    // Reset to step 0 instead of clearing everything
-    animateStep(0);
+function go(dir) {
+  var next = currentStep + dir;
+  if (next < 0) next = 0;
+  if (next > MAX) next = MAX;
+  currentStep = next;
+  render();
 }
 
-// Initialize on load
-document.addEventListener('DOMContentLoaded', () => {
-    console.log('DOM loaded, initializing...');
-    initializeMemory();
-    animateStep(0);
-    
-    // Auto-play after a short delay
-    setTimeout(() => {
-        console.log('Auto-starting animation...');
-        playAnimation();
-    }, 2000);
-});
+function togglePlay() {
+  playing = !playing;
+  updatePlayBtn();
+  if (playing) playTick();
+  else clearTimeout(playTimer);
+}
+
+function playTick() {
+  if (!playing) return;
+  if (currentStep >= MAX) { playing = false; updatePlayBtn(); return; }
+  currentStep++;
+  render();
+  var speed = parseInt(document.getElementById('speedSel').value, 10);
+  playTimer = setTimeout(playTick, speed);
+}
+
+function updatePlayBtn() {
+  document.getElementById('playIcon').style.display = playing ? 'none' : '';
+  document.getElementById('stopIcon').style.display = playing ? '' : 'none';
+  document.getElementById('playLabelEl').textContent = playing ? 'Stop' : 'Play';
+  var btn = document.getElementById('playBtn');
+  if (playing) { btn.classList.remove('play'); btn.classList.add('stop'); }
+  else { btn.classList.remove('stop'); btn.classList.add('play'); }
+}
+
+initializeMemory();
+render();
 </script>
 </body>
 </html>
