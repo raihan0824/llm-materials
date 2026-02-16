@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LLM Materials — Interactive Explainers</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: #0d1117; color: #e6edf3; min-height: 100vh; padding: 24px; }
+  .container { max-width: 800px; margin: 0 auto; }
+
+  header { text-align: center; margin-bottom: 48px; padding-top: 32px; }
+  h1 { font-size: 2rem; color: #e6edf3; margin-bottom: 8px; font-weight: 800; }
+  h1 span { color: #58a6ff; }
+  .tagline { color: #8b949e; font-size: 1rem; line-height: 1.6; max-width: 520px; margin: 0 auto; }
+
+  .cards { display: grid; gap: 16px; }
+
+  .card {
+    display: block;
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 12px;
+    padding: 24px 28px;
+    text-decoration: none;
+    color: inherit;
+    transition: border-color 0.2s, transform 0.15s, box-shadow 0.2s;
+  }
+  .card:hover {
+    border-color: #58a6ff;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 24px rgba(88, 166, 255, 0.08);
+  }
+
+  .card-number {
+    display: inline-block;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #0d1117;
+    background: #58a6ff;
+    padding: 2px 8px;
+    border-radius: 4px;
+    margin-bottom: 10px;
+  }
+  .card-title {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #e6edf3;
+    margin-bottom: 6px;
+  }
+  .card-desc {
+    font-size: 0.85rem;
+    line-height: 1.6;
+    color: #8b949e;
+  }
+  .card-tags {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+  }
+  .tag {
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 12px;
+    border: 1px solid #30363d;
+    color: #8b949e;
+    background: #0d1117;
+  }
+
+  .footer {
+    text-align: center;
+    margin-top: 48px;
+    padding: 16px;
+    font-size: 0.8rem;
+    color: #484f58;
+  }
+  .footer a { color: #58a6ff; text-decoration: none; }
+  .footer a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <h1>LLM <span>Materials</span></h1>
+    <p class="tagline">Interactive step-by-step explainers for understanding how vLLM and large language model serving works under the hood.</p>
+  </header>
+
+  <div class="cards">
+    <a class="card" href="pagedattention.html">
+      <span class="card-number">Module 1</span>
+      <div class="card-title">PagedAttention vs Traditional Memory</div>
+      <div class="card-desc">How vLLM eliminates memory waste with virtual memory-inspired paging. Compare traditional contiguous allocation against PagedAttention's dynamic page-granular approach across 64 memory blocks.</div>
+      <div class="card-tags">
+        <span class="tag">Memory Management</span>
+        <span class="tag">PagedAttention</span>
+        <span class="tag">Fragmentation</span>
+      </div>
+    </a>
+
+    <a class="card" href="vllm_continuous_batching.html">
+      <span class="card-number">Module 2</span>
+      <div class="card-title">Static vs Continuous Batching</div>
+      <div class="card-desc">How vLLM maximizes GPU utilization with iteration-level scheduling. See why continuous batching achieves ~95% GPU utilization compared to static batching's ~50%.</div>
+      <div class="card-tags">
+        <span class="tag">Batching</span>
+        <span class="tag">GPU Utilization</span>
+        <span class="tag">Scheduling</span>
+      </div>
+    </a>
+
+    <a class="card" href="kv-cache-vs-prefix-cache.html">
+      <span class="card-number">Module 3</span>
+      <div class="card-title">KV Cache vs Prefix Cache</div>
+      <div class="card-desc">Understanding how vLLM avoids redundant computation. Walk through single-request KV caching and cross-request prefix cache reuse with hash-based block lookup.</div>
+      <div class="card-tags">
+        <span class="tag">KV Cache</span>
+        <span class="tag">Prefix Cache</span>
+        <span class="tag">Optimization</span>
+      </div>
+    </a>
+
+    <a class="card" href="prefix-cache-architecture.html">
+      <span class="card-number">Module 4</span>
+      <div class="card-title">Prefix Cache Architecture — Block Lifecycle</div>
+      <div class="card-desc">Deep dive into the internal block lifecycle of prefix caching. Trace how blocks transition through allocation, hashing, eviction, and reuse states inside the vLLM engine.</div>
+      <div class="card-tags">
+        <span class="tag">Architecture</span>
+        <span class="tag">Block Lifecycle</span>
+        <span class="tag">Eviction</span>
+      </div>
+    </a>
+  </div>
+
+  <div class="footer">Created by <a href="https://github.com/raihan0824" target="_blank">Raihan Afiandi</a></div>
+</div>
+
+</body>
+</html>
